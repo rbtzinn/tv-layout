@@ -21,5 +21,11 @@ O código está pronto, mas **ainda não foi compilado nem testado**. O primeiro
 - **Segurar OK** num favorito abre o menu para mover ou remover.
 - Em **Todos os apps**, segurar OK adiciona ou tira o app dos favoritos (★).
 
+## Foto da tela inicial
+A foto **não fica no repositório**. O app procura uma imagem (.jpg, .png ou .webp) nesta pasta da TV:
+`/sdcard/Android/data/com.rbtzinn.tvlauncher/files/`
+
+Se houver mais de uma, usa a mais recente. Sem foto, os apps ocupam a tela inteira.
+
 ## Observação
 A pasta `keystore/` tem a chave que assina o APK, para que as atualizações instalem por cima da versão anterior. Se o repositório for público, é melhor movê-la para os Secrets do GitHub.

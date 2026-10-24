@@ -7,6 +7,7 @@ import android.widget.Toast
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
@@ -31,6 +32,11 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var loaded by mutableStateOf(false)
         private set
+    var photo by mutableStateOf<ImageBitmap?>(null)
+        private set
+
+    // Só recarrega a foto se o arquivo mudou (abrir a tela inicial continua instantâneo).
+    private var photoKey: String? = null
 
     /** Favoritos na ordem escolhida, ignorando apps que foram desinstalados. */
     val favoriteApps: List<TvApp>
@@ -51,7 +57,17 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
             inputs = hdmi
             seedDefaultFavoritesOnce(apps)
             loaded = true
+            refreshPhoto()
         }
+    }
+
+    private suspend fun refreshPhoto() {
+        val context = getApplication<Application>()
+        val file = withContext(Dispatchers.IO) { PhotoRepository.findPhoto(context) }
+        val key = file?.let { "${it.path}:${it.lastModified()}:${it.length()}" }
+        if (key == photoKey) return
+        photoKey = key
+        photo = if (file == null) null else withContext(Dispatchers.IO) { PhotoRepository.load(file) }
     }
 
     /** No primeiro uso, já coloca os streamings mais comuns que estiverem instalados. */

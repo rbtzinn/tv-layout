@@ -7,9 +7,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -30,13 +33,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.tv.material3.Button
@@ -48,6 +55,10 @@ import androidx.tv.material3.darkColorScheme
 import com.rbtzinn.tvlauncher.LauncherViewModel
 import com.rbtzinn.tvlauncher.Screen
 import com.rbtzinn.tvlauncher.TvApp
+import kotlinx.coroutines.delay
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 private val Background = Color(0xFF0E1116)
 private val Panel = Color(0xFF1B2028)
@@ -57,6 +68,7 @@ private val TextDim = Color(0xFF9AA4B2)
 private val Star = Color(0xFFFFD54F)
 
 private const val COLUMNS = 5
+private const val COLUMNS_WITH_PHOTO = 3
 
 @Composable
 fun LauncherApp(vm: LauncherViewModel) {
@@ -86,44 +98,53 @@ private fun HomeScreen(vm: LauncherViewModel) {
     var menuFor by remember { mutableStateOf<TvApp?>(null) }
     val favorites = vm.favoriteApps
     val firstFocus = remember { FocusRequester() }
+    val photo = vm.photo
 
-    LauncherGrid {
-        if (vm.inputs.isNotEmpty()) {
-            sectionTitle("Entradas")
-            fullLine {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(vm.inputs, key = { it.id }) { input ->
-                        Button(onClick = { vm.openInput(input) }) { Text(input.label) }
+    Row(Modifier.fillMaxSize()) {
+        if (photo != null) PhotoPanel(photo)
+
+        LauncherGrid(
+            columns = if (photo != null) COLUMNS_WITH_PHOTO else COLUMNS,
+            startPadding = if (photo != null) 32.dp else 56.dp,
+            modifier = Modifier.weight(1f),
+        ) {
+            if (vm.inputs.isNotEmpty()) {
+                sectionTitle("Entradas")
+                fullLine {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(vm.inputs, key = { it.id }) { input ->
+                            Button(onClick = { vm.openInput(input) }) { Text(input.label) }
+                        }
                     }
                 }
             }
-        }
 
-        sectionTitle(
-            "Favoritos",
-            hint = "Segure OK num app para mover ou remover",
-        )
-
-        itemsIndexed(favorites, key = { _, app -> app.packageName }) { index, app ->
-            AppCard(
-                app = app,
-                onClick = { vm.launch(app) },
-                onLongClick = { menuFor = app },
-                modifier = if (index == 0) Modifier.focusRequester(firstFocus) else Modifier,
+            sectionTitle(
+                "Favoritos",
+                hint = "Segure OK num app para mover ou remover",
             )
-        }
 
-        item(key = "__all_apps") {
-            TextTile(
-                title = "Todos os apps",
-                subtitle = "${vm.allApps.size} instalados",
-                onClick = vm::showAllApps,
-                modifier = if (favorites.isEmpty()) Modifier.focusRequester(firstFocus) else Modifier,
-            )
-        }
+            itemsIndexed(favorites, key = { _, app -> app.packageName }) { index, app ->
+                AppCard(
+                    app = app,
+                    onClick = { vm.launch(app) },
+                    onLongClick = { menuFor = app },
+                    modifier = if (index == 0) Modifier.focusRequester(firstFocus) else Modifier,
+                )
+            }
 
-        item(key = "__settings") {
-            TextTile(title = "Configurações", subtitle = "da TV", onClick = vm::openSettings)
+            item(key = "__all_apps") {
+                TextTile(
+                    title = "Todos os apps",
+                    subtitle = "${vm.allApps.size} instalados",
+                    onClick = vm::showAllApps,
+                    modifier = if (favorites.isEmpty()) Modifier.focusRequester(firstFocus) else Modifier,
+                )
+            }
+
+            item(key = "__settings") {
+                TextTile(title = "Configurações", subtitle = "da TV", onClick = vm::openSettings)
+            }
         }
     }
 
@@ -179,14 +200,69 @@ private fun AllAppsScreen(vm: LauncherViewModel) {
 // ---------------------------------------------------------------- Componentes
 
 @Composable
-private fun LauncherGrid(content: LazyGridScope.() -> Unit) {
+private fun LauncherGrid(
+    columns: Int = COLUMNS,
+    startPadding: Dp = 56.dp,
+    modifier: Modifier = Modifier,
+    content: LazyGridScope.() -> Unit,
+) {
     LazyVerticalGrid(
-        columns = GridCells.Fixed(COLUMNS),
-        contentPadding = PaddingValues(horizontal = 56.dp, vertical = 36.dp),
+        columns = GridCells.Fixed(columns),
+        contentPadding = PaddingValues(start = startPadding, end = 56.dp, top = 36.dp, bottom = 36.dp),
         horizontalArrangement = Arrangement.spacedBy(20.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize(),
         content = content,
+    )
+}
+
+/** Foto vertical num cartão arredondado, com o relógio discreto por cima. */
+@Composable
+private fun PhotoPanel(photo: ImageBitmap) {
+    Box(
+        Modifier
+            .fillMaxHeight()
+            .padding(start = 56.dp, top = 36.dp, bottom = 36.dp)
+            .aspectRatio(3f / 4f, matchHeightConstraintsFirst = true)
+            .clip(RoundedCornerShape(24.dp))
+    ) {
+        Image(
+            bitmap = photo,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.35f)
+                .align(Alignment.BottomCenter)
+                .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xCC000000))))
+        )
+        Clock(
+            Modifier
+                .align(Alignment.BottomStart)
+                .padding(20.dp)
+        )
+    }
+}
+
+@Composable
+private fun Clock(modifier: Modifier = Modifier) {
+    val format = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
+    var now by remember { mutableStateOf(format.format(Date())) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            now = format.format(Date())
+            delay(15_000)
+        }
+    }
+    Text(
+        now,
+        style = MaterialTheme.typography.displaySmall,
+        fontWeight = FontWeight.Light,
+        color = Color.White,
+        modifier = modifier,
     )
 }
 
